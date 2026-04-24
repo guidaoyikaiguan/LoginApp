@@ -2,31 +2,45 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Build APK
         run: |
+          # 1. 创建标准 Android 项目结构
           mkdir -p app/src/main/java/com/app/test
           mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+
+          # 2. 移动你的文件到标准路径
           mv AndroidManifest.xml app/src/main/
           mv src/com/app/test/* app/src/main/java/com/app/test/
           mv res/layout/* app/src/main/res/layout/
+
+          # 3. 自动生成 build.gradle
           cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
           }
+
           android {
               namespace 'com.app.test'
               compileSdk 34
+
               defaultConfig {
                   applicationId "com.app.test"
                   minSdk 21
@@ -34,27 +48,35 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
+
               buildTypes {
-                  release { minifyEnabled false }
+                  release {
+                      minifyEnabled false
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
                   targetCompatibility JavaVersion.VERSION_1_8
               }
           }
+
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.6.1'
           }
           EOF
+
+          # 4. 生成 settings.gradle
           echo 'include(":app")' > settings.gradle
+
+          # 5. 生成 gradle-wrapper.properties
           mkdir -p gradle/wrapper
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
           networkTimeout=10000
           validateDistributionUrl=true
           EOF
-          wget https://raw.githubusercontent.com/gradle/gradle/v8.2/gradlew -O gradlew
-          chmod +x gradlew
+
+          # 6. 直接编译，Gradle 会自动处理 gradlew
           ./gradlew assembleDebug
