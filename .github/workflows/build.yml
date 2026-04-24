@@ -18,20 +18,29 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
       - name: Build APK
         run: |
-          # 1. 创建标准 Android 项目结构
+          # 1. 创建完整的Android项目结构
           mkdir -p app/src/main/java/com/app/test
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
 
-          # 2. 移动你的文件到标准路径
+          # 2. 移动你的代码文件到标准路径
           mv AndroidManifest.xml app/src/main/
           mv src/com/app/test/* app/src/main/java/com/app/test/
           mv res/layout/* app/src/main/res/layout/
 
-          # 3. 自动生成 build.gradle
+          # 3. 生成【根目录build.gradle】（之前缺失的关键文件）
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.0' apply false
+          }
+          EOF
+
+          # 4. 生成【app模块build.gradle】
           cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -62,13 +71,28 @@ jobs:
 
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
           }
           EOF
 
-          # 4. 生成 settings.gradle
-          echo 'include(":app")' > settings.gradle
+          # 5. 生成settings.gradle
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          include(":app")
+          EOF
 
-          # 5. 生成 gradle-wrapper.properties
+          # 6. 生成gradle-wrapper.properties
           mkdir -p gradle/wrapper
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
@@ -78,5 +102,11 @@ jobs:
           validateDistributionUrl=true
           EOF
 
-          # 6. 直接编译，Gradle 会自动处理 gradlew
-          ./gradlew assembleDebug
+          # 7. 直接用gradle命令编译（彻底解决gradlew不存在的问题）
+          gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
